@@ -4258,7 +4258,7 @@ end
 function Section:AddSlider(opts)
     opts = opts or {}
     local showRange = opts.ShowRange ~= false
-    local el, row = self:_Make("Slider", opts, showRange and 68 or 56)
+    local el, row = self:_Make("Slider", opts, showRange and 72 or 62)
     local min, max = opts.Min or 0, opts.Max or 100
     local step = opts.Step or opts.Rounding or 1
     local decimals = opts.Decimals or U.DecimalsOf(step)
@@ -4266,9 +4266,10 @@ function Section:AddSlider(opts)
     local value = U.Clamp(opts.Default or min, min, max)
     local dragging, hovering = false, false
     local white = Color3.new(1, 1, 1)
-    local TRACK_Y = 38
+    local TRACK_Y = 44
 
-    rowLabel(el, row, el.Text, 12, 110)
+    -- label only occupies the top strip (it used to be centred on the whole row and collided with the track)
+    rowLabel(el, row, el.Text, 12, 110).Size = UDim2.new(1, -110, 0, 40)
 
     local function fmt(v)
         return prefix .. U.FormatNumber(v, decimals) .. suffix
@@ -4367,11 +4368,11 @@ function Section:AddSlider(opts)
     local minLbl, maxLbl
     if showRange then
         minLbl = New("TextLabel", {
-            Text = fmt(min), Font = Fonts.Medium, TextSize = 10, Position = UDim2.fromOffset(14, 52), Size = UDim2.fromOffset(80, 12),
+            Text = fmt(min), Font = Fonts.Medium, TextSize = 10, Position = UDim2.fromOffset(14, 57), Size = UDim2.fromOffset(80, 12),
             Parent = row, Theme = { TextColor3 = "Muted" },
         })
         maxLbl = New("TextLabel", {
-            Text = fmt(max), Font = Fonts.Medium, TextSize = 10, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 52),
+            Text = fmt(max), Font = Fonts.Medium, TextSize = 10, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 57),
             Size = UDim2.fromOffset(80, 12), TextXAlignment = Enum.TextXAlignment.Right, Parent = row, Theme = { TextColor3 = "Muted" },
         })
     end
@@ -4498,7 +4499,7 @@ function Section:AddProgress(opts)
     local min, max = opts.Min or 0, opts.Max or 1
     local value = opts.Value or 0
     local indeterminate = opts.Indeterminate == true
-    rowLabel(el, row, el.Text, 12, 90)
+    rowLabel(el, row, el.Text, 12, 90).Size = UDim2.new(1, -90, 0, 28)
     local pct = New("TextLabel", {
         AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 0), Size = UDim2.fromOffset(70, 28),
         Font = Fonts.Semibold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, Parent = row,
