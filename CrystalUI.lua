@@ -1441,32 +1441,38 @@ end
 
 -- ── Glass primitives ────────────────────────────────────────────────────────
 
--- Layered shadow (no image assets required): stacked rounded frames fading out.
+-- Soft shadow built from hollow rings that sit strictly OUTSIDE the window edge,
+-- so nothing is ever visible through the translucent glass.
 local function Shadow(parent, radius, spread, offsetY)
     radius = radius or 18
     spread = spread or 26
-    offsetY = offsetY or 10
+    offsetY = offsetY or 8
     local holder = New("Frame", {
         Name = "Shadow", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
         Position = UDim2.fromOffset(0, 0), ZIndex = 0, Parent = parent,
     })
     local layers = 9
+    local thick = spread / layers
     for i = 1, layers do
-        local grow = (spread * i) / layers
-        local f = New("Frame", {
+        local g = offsetY + (i - 1) * thick
+        New("Frame", {
             Name = "L" .. i, AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 0, 0.5, offsetY),
-            Size = UDim2.new(1, grow * 2 - 8, 1, grow * 2 - 8),
-            BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 0, Parent = holder,
-            Theme = {
-                BackgroundColor3 = "Shadow",
-                BackgroundTransparency = function(t)
-                    -- outer layers fade out; inner ones carry weight
-                    local base = t.ShadowTransparency
-                    return U.Clamp(base + (1 - base) * ((i - 1) / layers) ^ 0.55 * 0.9, 0, 1)
-                end,
-            },
-        }, { Corner(radius + grow * 0.65) })
+            Size = UDim2.new(1, g * 2, 1, g * 2),
+            BackgroundTransparency = 1, ZIndex = 0, Parent = holder,
+        }, {
+            Corner(radius + g),
+            New("UIStroke", {
+                Thickness = thick + 0.8, ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                Theme = {
+                    Color = "Shadow",
+                    Transparency = function(t)
+                        local base = t.ShadowTransparency - 0.06
+                        return U.Clamp(base + (1 - base) * ((i - 1) / layers) ^ 0.5, 0, 1)
+                    end,
+                },
+            }),
+        })
     end
     return holder
 end
@@ -3465,9 +3471,15 @@ function Window:AddTab(opts)
         Name = "Page_" .. tab.Name, Size = UDim2.fromScale(1, 1), Visible = false, ScrollBarThickness = 3,
         Parent = self.Content,
         Theme = { ScrollBarImageColor3 = "Accent" },
-    }, { Pad(14, 14, 14, 14) })
+    })
+    -- (UIPadding directly on a ScrollingFrame does not shrink scale-sized children, which made the
+    --  right column spill out of the window; a plain wrapper frame handles padding correctly)
+    local wrap = New("Frame", {
+        Name = "Wrap", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1,
+        Parent = page,
+    }, { Pad(14, 14, 14, 16) })
     local cols = New("Frame", {
-        Name = "Columns", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = page,
+        Name = "Columns", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = wrap,
     })
     local colGap = 12
     local left = New("Frame", {
@@ -4242,55 +4254,126 @@ end
 
 -- ── Slider ──────────────────────────────────────────────────────────────────
 
--- Section:AddSlider({ Flag, Text, Min, Max, Default, Step, Suffix, Prefix, Decimals, Callback })
+-- Section:AddSlider({ Flag, Text, Min, Max, Default, Step, Suffix, Prefix, Decimals, ShowRange, Callback })
 function Section:AddSlider(opts)
     opts = opts or {}
-    local el, row = self:_Make("Slider", opts, 54)
+    local showRange = opts.ShowRange ~= false
+    local el, row = self:_Make("Slider", opts, showRange and 68 or 56)
     local min, max = opts.Min or 0, opts.Max or 100
     local step = opts.Step or opts.Rounding or 1
     local decimals = opts.Decimals or U.DecimalsOf(step)
     local suffix, prefix = opts.Suffix or "", opts.Prefix or ""
     local value = U.Clamp(opts.Default or min, min, max)
-    local dragging = false
+    local dragging, hovering = false, false
+    local white = Color3.new(1, 1, 1)
+    local TRACK_Y = 38
 
-    rowLabel(el, row, el.Text, 12, 96)
-
-    local box = New("TextBox", {
-        Name = "ValueBox", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 7), Size = UDim2.fromOffset(70, 22),
-        Font = Fonts.Semibold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false,
-        BackgroundTransparency = 0, Parent = row,
-        Theme = { TextColor3 = "Text", BackgroundColor3 = "Surface", BackgroundTransparency = "SurfaceTransparency" },
-    }, { Corner(7) })
-    local boxStroke = Stroke(1)
-    boxStroke.Parent = box
-
-    local hit = New("TextButton", {
-        Name = "Hit", Size = UDim2.new(1, -24, 0, 22), Position = UDim2.fromOffset(12, 30), Text = "", BackgroundTransparency = 1,
-        Parent = row,
-    })
-    local track = New("Frame", {
-        Name = "Track", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0, 6),
-        Parent = hit, Theme = { BackgroundColor3 = "TrackOff", BackgroundTransparency = "TrackOffTransparency" },
-    }, { Corner(UDim.new(0.5, 0)) })
-    local fill = New("Frame", {
-        Name = "Fill", Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track,
-    }, { Corner(UDim.new(0.5, 0)), AccentGradient(0) })
-    local knob = New("Frame", {
-        Name = "Knob", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.fromOffset(14, 14),
-        BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 4, Parent = track,
-    }, { Corner(UDim.new(0.5, 0)) })
-    local kStroke = New("UIStroke", { Thickness = 2, Parent = knob, Theme = { Color = "Accent" } })
-
-    -- value bubble (visible while dragging)
-    local bubble = New("TextLabel", {
-        Name = "Bubble", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0, 0, 0, -10), Size = UDim2.fromOffset(46, 20),
-        BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, TextTransparency = 1, Font = Fonts.Bold, TextSize = 11,
-        TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 6, Parent = track,
-        Theme = { TextColor3 = "AccentText" },
-    }, { Corner(6), AccentGradient(0) })
+    rowLabel(el, row, el.Text, 12, 110)
 
     local function fmt(v)
         return prefix .. U.FormatNumber(v, decimals) .. suffix
+    end
+
+    -- editable value pill (top right)
+    local box = New("TextBox", {
+        Name = "ValueBox", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(76, 24),
+        Font = Fonts.Bold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false,
+        Parent = row,
+        Theme = { TextColor3 = "Accent", BackgroundColor3 = "Surface", BackgroundTransparency = "SurfaceTransparency" },
+    }, { Corner(8) })
+    local boxStroke = Stroke(1)
+    boxStroke.Parent = box
+
+    -- hit area + track
+    local hit = New("TextButton", {
+        Name = "Hit", Size = UDim2.new(1, -28, 0, 28), Position = UDim2.fromOffset(14, TRACK_Y - 14), Text = "",
+        BackgroundTransparency = 1, Parent = row,
+    })
+    local track = New("Frame", {
+        Name = "Track", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0, 8),
+        ClipsDescendants = true, Parent = hit,
+        Theme = { BackgroundColor3 = "TrackOff", BackgroundTransparency = "TrackOffTransparency" },
+    }, { Corner(UDim.new(0.5, 0)), Stroke(1) })
+
+    -- fill: the gradient always spans the whole track, the clip frame just reveals more of it
+    local fillClip = New("Frame", {
+        Name = "FillClip", Size = UDim2.new(0, 0, 1, 0), BackgroundTransparency = 1, ClipsDescendants = true, Parent = track,
+    })
+    local fillInner = New("Frame", {
+        Name = "Fill", Size = UDim2.new(0, 200, 1, 0), BackgroundColor3 = white, Parent = fillClip,
+    }, { Corner(UDim.new(0.5, 0)), AccentGradient(0) })
+    New("Frame", {
+        Name = "Gloss", Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0, 4, 0, 1), BackgroundColor3 = white,
+        BackgroundTransparency = 0.72, Parent = fillInner,
+    }, { Corner(UDim.new(0.5, 0)) })
+
+    local function syncFill()
+        local w = track.AbsoluteSize.X / math.max(currentScale(el.Window), 0.01)
+        fillInner.Size = UDim2.new(0, math.max(w, 1), 1, 0)
+    end
+    track:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncFill)
+
+    -- step ticks (only when the slider has a small number of steps)
+    local function buildTicks()
+        for _, c in ipairs(track:GetChildren()) do
+            if c.Name == "Tick" then c:Destroy() end
+        end
+        if step <= 0 then return end
+        local n = (max - min) / step
+        if n >= 2 and n <= 20 and math.abs(n - math.floor(n + 0.5)) < 1e-6 then
+            n = math.floor(n + 0.5)
+            for i = 1, n - 1 do
+                New("Frame", {
+                    Name = "Tick", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(i / n, 0, 0.5, 0),
+                    Size = UDim2.fromOffset(2, 2), BackgroundColor3 = white, BackgroundTransparency = 0.7, ZIndex = 3,
+                    Parent = track,
+                }, { Corner(UDim.new(0.5, 0)) })
+            end
+        end
+    end
+    buildTicks()
+
+    -- knob: soft glow + white disc + accent core (all inside one holder that follows the value)
+    local holder = New("Frame", {
+        Name = "KnobHolder", Size = UDim2.fromOffset(0, 0), Position = UDim2.new(0, 0, 0.5, 0), BackgroundTransparency = 1,
+        ZIndex = 5, Parent = hit,
+    })
+    local glow = New("Frame", {
+        Name = "Glow", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(32, 32), BackgroundTransparency = 0.9,
+        ZIndex = 4, Parent = holder, Theme = { BackgroundColor3 = "Accent" },
+    }, { Corner(UDim.new(0.5, 0)) })
+    local knob = New("Frame", {
+        Name = "Knob", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(18, 18), BackgroundColor3 = white,
+        ZIndex = 6, Parent = holder,
+    }, { Corner(UDim.new(0.5, 0)), New("UIStroke", { Thickness = 1, Color = Color3.new(0, 0, 0), Transparency = 0.82 }) })
+    New("Frame", {
+        Name = "Core", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 8),
+        BackgroundColor3 = white, ZIndex = 7, Parent = knob,
+    }, { Corner(UDim.new(0.5, 0)), AccentGradient(45) })
+
+    -- value bubble with a pointer (fades in while dragging)
+    local bubble = New("TextLabel", {
+        Name = "Bubble", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0, 0, 0, -16), Size = UDim2.fromOffset(46, 20),
+        BackgroundColor3 = white, BackgroundTransparency = 1, TextTransparency = 1, Font = Fonts.Bold, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 9, Parent = holder,
+        Theme = { TextColor3 = "AccentText" },
+    }, { Corner(7), AccentGradient(0) })
+    local pointer = New("Frame", {
+        Name = "Pointer", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.fromOffset(8, 8),
+        Rotation = 45, BackgroundTransparency = 1, ZIndex = 8, Parent = bubble, Theme = { BackgroundColor3 = "Accent2" },
+    })
+
+    -- min / max captions
+    local minLbl, maxLbl
+    if showRange then
+        minLbl = New("TextLabel", {
+            Text = fmt(min), Font = Fonts.Medium, TextSize = 10, Position = UDim2.fromOffset(14, 52), Size = UDim2.fromOffset(80, 12),
+            Parent = row, Theme = { TextColor3 = "Muted" },
+        })
+        maxLbl = New("TextLabel", {
+            Text = fmt(max), Font = Fonts.Medium, TextSize = 10, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 52),
+            Size = UDim2.fromOffset(80, 12), TextXAlignment = Enum.TextXAlignment.Right, Parent = row, Theme = { TextColor3 = "Muted" },
+        })
     end
 
     local function ratioOf(v)
@@ -4298,22 +4381,28 @@ function Section:AddSlider(opts)
         return (v - min) / (max - min)
     end
 
+    local SPRING = { Stiffness = 520, Ratio = 1.0 }
     local function visual(instant)
         local r = ratioOf(value)
-        local w = UDim2.new(r, 0, 1, 0)
-        local kp = UDim2.new(r, 0, 0.5, 0)
-        local bp = UDim2.new(r, 0, 0, -10)
         box.Text = fmt(value)
         bubble.Text = fmt(value)
-        local bw = math.max(40, math.ceil(U.TextSize(bubble.Text, 11, Fonts.Bold).X) + 16)
-        bubble.Size = UDim2.fromOffset(bw, 20)
+        bubble.Size = UDim2.fromOffset(math.max(40, math.ceil(U.TextSize(bubble.Text, 11, Fonts.Bold).X) + 16), 20)
+        local fillSize = UDim2.new(r, 0, 1, 0)
+        local holderPos = UDim2.new(r, 0, 0.5, 0)
         if instant then
-            fill.Size, knob.Position, bubble.Position = w, kp, bp
+            fillClip.Size, holder.Position = fillSize, holderPos
         else
-            Anim.Spring(fill, "Size", w, { Stiffness = 420, Ratio = 1.0 })
-            Anim.Spring(knob, "Position", kp, { Stiffness = 420, Ratio = 1.0 })
-            Anim.Spring(bubble, "Position", bp, { Stiffness = 420, Ratio = 1.0 })
+            Anim.Spring(fillClip, "Size", fillSize, SPRING)
+            Anim.Spring(holder, "Position", holderPos, SPRING)
         end
+    end
+
+    local function glowLevel()
+        Anim.Tween(glow, { BackgroundTransparency = dragging and 0.62 or (hovering and 0.78 or 0.9) }, 0.16, "OutQuad")
+    end
+    local function showBubble(show)
+        Anim.Tween(bubble, { BackgroundTransparency = show and 0.02 or 1, TextTransparency = show and 0 or 1 }, 0.16, "OutQuad")
+        Anim.Tween(pointer, { BackgroundTransparency = show and 0.02 or 1 }, 0.16, "OutQuad")
     end
 
     local function setFromRatio(r)
@@ -4333,26 +4422,51 @@ function Section:AddSlider(opts)
         local changed = v ~= value
         value = v
         visual(false)
-        if changed or silent == false then el:_Commit(value, silent) else el.Value = value if el.Flag then Library.Flags[el.Flag] = value end end
+        if changed or silent == false then
+            el:_Commit(value, silent)
+        else
+            el.Value = value
+            if el.Flag then Library.Flags[el.Flag] = value end
+        end
     end
-    function el:SetMin(m) min = m value = U.Clamp(value, min, max) visual(true) end
-    function el:SetMax(m) max = m value = U.Clamp(value, min, max) visual(true) end
+    function el:SetMin(m)
+        min = m
+        value = U.Clamp(value, min, max)
+        if minLbl then minLbl.Text = fmt(min) end
+        buildTicks()
+        visual(true)
+    end
+    function el:SetMax(m)
+        max = m
+        value = U.Clamp(value, min, max)
+        if maxLbl then maxLbl.Text = fmt(max) end
+        buildTicks()
+        visual(true)
+    end
     function el:Get() return value end
 
-    local function showBubble(show)
-        Anim.Tween(bubble, { BackgroundTransparency = show and 0.05 or 1, TextTransparency = show and 0 or 1 }, 0.15, "OutQuad")
-    end
+    Interact.Hover(hit, function()
+        hovering = true
+        glowLevel()
+    end, function()
+        hovering = false
+        glowLevel()
+    end)
 
+    local function fromPos(pos)
+        setFromRatio((pos.X - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1))
+    end
     Interact.Drag(hit, function(pos)
         if el.Disabled then return end
         dragging = true
+        glowLevel()
         showBubble(true)
-        setFromRatio((pos.X - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1))
+        fromPos(pos)
     end, function(pos)
-        if not dragging then return end
-        setFromRatio((pos.X - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1))
+        if dragging then fromPos(pos) end
     end, function()
         dragging = false
+        glowLevel()
         showBubble(false)
     end)
 
@@ -4371,6 +4485,7 @@ function Section:AddSlider(opts)
     el.Value = value
     if el.Flag then Library.Flags[el.Flag] = value end
     visual(true)
+    task.defer(syncFill)
     return el
 end
 
