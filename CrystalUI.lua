@@ -996,17 +996,8 @@ function Anim.Pulse(inst, prop, peak, dur, ease)
 end
 
 -- Shake a gui object's position
-function Anim.Shake(inst, magnitude, dur)
-    local origin = inst.Position
-    magnitude = magnitude or 6
-    return Anim.Custom(dur or 0.35, "Linear", function(_, a)
-        local falloff = (1 - a)
-        local ox = math.sin(a * 55) * magnitude * falloff
-        local oy = math.cos(a * 43) * magnitude * 0.4 * falloff
-        inst.Position = UDim2.new(origin.X.Scale, origin.X.Offset + ox, origin.Y.Scale, origin.Y.Offset + oy)
-    end, function()
-        inst.Position = origin
-    end)
+function Anim.Shake()
+    -- intentionally disabled: no jiggle animations
 end
 
 -- Immediately set properties (and cancel anything animating them)
@@ -1037,11 +1028,11 @@ Anim.D = { Instant = 0.06, Fast = 0.14, Normal = 0.24, Slow = 0.42, Slower = 0.7
 
 -- Common spring presets
 Anim.Springs = {
-    Snappy = { Stiffness = 380, Ratio = 0.78 },
-    Smooth = { Stiffness = 190, Ratio = 0.95 },
-    Bouncy = { Stiffness = 260, Ratio = 0.52 },
+    Snappy = { Stiffness = 380, Ratio = 1.0 },
+    Smooth = { Stiffness = 190, Ratio = 1.0 },
+    Bouncy = { Stiffness = 260, Ratio = 1.0 },
     Gentle = { Stiffness = 120, Ratio = 1.0 },
-    Stiff = { Stiffness = 520, Ratio = 0.9 },
+    Stiff = { Stiffness = 520, Ratio = 1.0 },
 }
 
 function Anim.Clear()
@@ -2088,14 +2079,6 @@ function Controls.Button(opts)
     end, function()
         Anim.Tween(shine, { BackgroundTransparency = 1 }, 0.2)
     end)
-    Interact.Press(btn, function()
-        Anim.Spring(scale, "Scale", 0.95, Anim.Springs.Stiff)
-    end, function()
-        Anim.Spring(scale, "Scale", 1, Anim.Springs.Bouncy)
-    end)
-    btn.MouseLeave:Connect(function()
-        Anim.Spring(scale, "Scale", 1, Anim.Springs.Smooth)
-    end)
     btn.Activated:Connect(function()
         local m = U.MousePos()
         Ripple(btn, m.X, m.Y, Color3.new(1, 1, 1), 0.75)
@@ -2155,7 +2138,7 @@ local function buildTooltip()
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = glass,
         Theme = { TextColor3 = "Text" },
     }, { Pad(9, 6, 9, 6) })
-    local scale = New("UIScale", { Scale = 0.92, Parent = holder })
+    local scale = New("UIScale", { Scale = 1, Parent = holder })
     Tooltip.Frame, Tooltip.Label, Tooltip.Scale = holder, label, scale
 
     local loop = Anim.Every(function(dt)
@@ -2180,7 +2163,6 @@ function Tooltip.Show(text)
     Tooltip.Frame.Size = UDim2.fromOffset(math.ceil(size.X) + 20, math.ceil(size.Y) + 14)
     Tooltip.Frame.Visible = true
     Anim.Tween(Tooltip.Frame, { GroupTransparency = 0 }, 0.16, "OutQuad")
-    Anim.Spring(Tooltip.Scale, "Scale", 1, Anim.Springs.Snappy)
 end
 
 function Tooltip.Hide()
@@ -2191,7 +2173,6 @@ function Tooltip.Hide()
             Tooltip.Frame.Visible = false
         end
     end)
-    Anim.Spring(Tooltip.Scale, "Scale", 0.92, Anim.Springs.Snappy)
 end
 
 -- Attach a tooltip to any GuiObject. `source` is a string or function returning a string.
@@ -2262,7 +2243,7 @@ local function notifClose(entry)
         if e == entry then table.remove(Notif.List, i) break end
     end
     Anim.Tween(entry.card, { GroupTransparency = 1 }, 0.25, "InQuad")
-    Anim.Tween(entry.holder, { Position = notifPlace(entry, 0, true) }, 0.35, "InBack", 0, function()
+    Anim.Tween(entry.holder, { Position = notifPlace(entry, 0, true) }, 0.35, "InCubic", 0, function()
         entry.holder:Destroy()
     end)
     notifRelayout(true)
@@ -2435,7 +2416,7 @@ function Library:Dialog(opts)
         Size = UDim2.fromOffset(W, height), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
         GroupTransparency = 1, BackgroundTransparency = 1, ZIndex = 61, Parent = dim,
     })
-    local scale = New("UIScale", { Scale = 0.86, Parent = holder })
+    local scale = New("UIScale", { Scale = 1, Parent = holder })
     local glass = Glass({ Size = UDim2.fromScale(1, 1), Parent = holder }, { Radius = 16, Strength = -0.1 })
     Lip(glass, 20)
 
@@ -2464,7 +2445,6 @@ function Library:Dialog(opts)
         closed = true
         Anim.Tween(dim, { BackgroundTransparency = 1 }, 0.25, "OutQuad")
         Anim.Tween(holder, { GroupTransparency = 1 }, 0.2, "InQuad")
-        Anim.Spring(scale, "Scale", 0.9, Anim.Springs.Stiff)
         Anim.Delay(0.3, function() dim:Destroy() end)
     end
 
@@ -2496,7 +2476,6 @@ function Library:Dialog(opts)
 
     Anim.Tween(dim, { BackgroundTransparency = 0.5 }, 0.3, "OutQuad")
     Anim.Tween(holder, { GroupTransparency = 0 }, 0.25, "OutQuad")
-    Anim.Spring(scale, "Scale", 1, Anim.Springs.Bouncy)
 
     return { Close = close }
 end
@@ -2931,7 +2910,7 @@ function Library:CreateWindow(opts)
         Name = "Root", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
         Size = self.Size, BackgroundTransparency = 1, Visible = false, Parent = Library.Gui,
     })
-    local uiscale = New("UIScale", { Scale = 0.88, Parent = root })
+    local uiscale = New("UIScale", { Scale = 1, Parent = root })
     self.Root, self.UIScale = root, uiscale
     Library._scale = 1
 
@@ -2956,43 +2935,6 @@ function Library:CreateWindow(opts)
     local glass = Glass({ Name = "Glass", Size = UDim2.fromScale(1, 1), ClipsDescendants = true, Parent = main },
         { Radius = 18 })
     self.Glass = glass
-
-    -- animated colour blobs behind everything (fake radial glows, built from stacked circles)
-    local backdrop = New("Frame", {
-        Name = "Backdrop", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 0,
-        ClipsDescendants = true, Parent = glass,
-    })
-    local blobs = {}
-    local function makeBlob(token, x, y, d)
-        local holder = New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(x, y), Size = UDim2.fromOffset(d, d),
-            BackgroundTransparency = 1, ZIndex = 0, Parent = backdrop,
-        })
-        for i = 1, 7 do
-            local k = i / 7
-            New("Frame", {
-                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.fromScale(1 - k * 0.78, 1 - k * 0.78), ZIndex = 0, Parent = holder,
-                Theme = {
-                    BackgroundColor3 = token,
-                    BackgroundTransparency = function(t)
-                        return t.Dark and (0.965 - k * 0.04) or (0.9 - k * 0.04)
-                    end,
-                },
-            }, { Corner(UDim.new(0.5, 0)) })
-        end
-        return holder
-    end
-    blobs[1] = makeBlob("BlobA", 0.18, 0.2, 440)
-    blobs[2] = makeBlob("BlobB", 0.85, 0.82, 480)
-    self.Blobs = blobs
-
-    local blobLoop = Anim.Every(function(dt, now)
-        if not self.Visible then return end
-        blobs[1].Position = UDim2.fromScale(0.18 + math.sin(now * 0.31) * 0.06, 0.2 + math.cos(now * 0.27) * 0.06)
-        blobs[2].Position = UDim2.fromScale(0.85 + math.cos(now * 0.23) * 0.07, 0.82 + math.sin(now * 0.29) * 0.06)
-    end)
-    self.Maid:Give(blobLoop)
 
     -- content container (everything interactive lives here)
     local frame = New("Frame", { Name = "Frame", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 2, Parent = glass })
@@ -3249,7 +3191,7 @@ function Library:CreateWindow(opts)
     if S.UserInputService.TouchEnabled then
         local mob = New("TextButton", {
             Name = "MobileToggle", Size = UDim2.fromOffset(46, 46), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 12),
-            BackgroundColor3 = Color3.new(1, 1, 1), Text = "", Parent = Library.Overlay, ZIndex = 30,
+            BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, Text = "", Parent = Library.Overlay, ZIndex = 30,
         }, { Corner(UDim.new(0.5, 0)), AccentGradient(45), Stroke(1.2) })
         local mi = Icons.Create("layers", 20, Color3.new(1, 1, 1))
         mi.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3306,10 +3248,9 @@ function Window:Show(playIntro)
     end
 
     self.Main.GroupTransparency = 1
-    self.UIScale.Scale = 0.9 * Library._scale
+    self.UIScale.Scale = Library._scale
     Anim.Tween(self.Main, { GroupTransparency = 0 }, 0.28, "OutCubic")
     Anim.Tween(self.ShadowFrame, { GroupTransparency = 0 }, 0.35, "OutCubic")
-    Anim.Spring(self.UIScale, "Scale", Library._scale, Anim.Springs.Bouncy)
 end
 
 function Window:Hide()
@@ -3319,7 +3260,6 @@ function Window:Hide()
     Tooltip.Hide()
     Anim.Tween(self.Main, { GroupTransparency = 1 }, 0.2, "InQuad")
     Anim.Tween(self.ShadowFrame, { GroupTransparency = 1 }, 0.2, "InQuad")
-    Anim.Spring(self.UIScale, "Scale", 0.92 * Library._scale, Anim.Springs.Stiff)
     Anim.Delay(0.24, function()
         if not self.Visible and self.Root then self.Root.Visible = false end
     end)
@@ -3341,7 +3281,7 @@ function Window:SetMinimized(state)
         Anim.Spring(self.Root, "Size", UDim2.fromOffset(self.Root.Size.X.Offset, topH), Anim.Springs.Smooth)
     else
         local target = self._restoreSize or self.Size
-        Anim.Spring(self.Root, "Size", target, { Stiffness = 220, Ratio = 0.85, Done = function()
+        Anim.Spring(self.Root, "Size", target, { Stiffness = 220, Ratio = 1.0, Done = function()
             self.Sidebar.Visible = true
             self.Content.Visible = true
         end })
@@ -3388,7 +3328,7 @@ function Window:PlayEntrance()
             i = i + 1
             local final = b.Button.Position
             b.Button.Position = final + UDim2.fromOffset(-24, 0)
-            Anim.Tween(b.Button, { Position = final }, 0.45, "OutBack", 0.1 + i * 0.045)
+            Anim.Tween(b.Button, { Position = final }, 0.45, "OutCubic", 0.1 + i * 0.045)
         end
     end
     -- first tab's sections cascade in as well
@@ -3594,12 +3534,6 @@ function Window:SelectTab(tab, instant)
         self.Pill.Position = target
     else
         Anim.Spring(self.Pill, "Position", target, Anim.Springs.Snappy)
-        -- stretch a bit while travelling (squash & stretch feel)
-        local dist = previous and math.abs(previous.Y - tab.Y) or 0
-        local stretch = math.min(dist * 0.18, 16)
-        Anim.Tween(self.Pill, { Size = UDim2.new(1, 0, 0, TAB_H + stretch) }, 0.12, "OutQuad", 0, function()
-            Anim.Spring(self.Pill, "Size", UDim2.new(1, 0, 0, TAB_H), Anim.Springs.Bouncy)
-        end)
     end
 
     for _, t in ipairs(self.TabOrder) do
@@ -3684,9 +3618,7 @@ function Tab:_PlayIn()
     local token = self._token
     for i, sec in ipairs(self.Sections) do
         sec.Card.GroupTransparency = 1
-        sec.Scale.Scale = 0.94
         Anim.Tween(sec.Card, { GroupTransparency = 0 }, 0.4, "OutCubic", (i - 1) * 0.06)
-        Anim.Spring(sec.Scale, "Scale", 1, { Stiffness = 240, Ratio = 0.72, Delay = (i - 1) * 0.06 })
     end
     -- elements inside get a tiny stagger of their own (rows slide in a few px)
     local n = 0
@@ -3808,7 +3740,7 @@ function Tab:AddSection(opts)
         local token = sec._collapseToken
         local natural = body.AbsoluteSize.Y / math.max(currentScale(window), 0.01)
         if chevron then
-            Anim.Tween(chevron, { Rotation = state and -90 or 0 }, instant and 0 or 0.3, "OutBack")
+            Anim.Tween(chevron, { Rotation = state and -90 or 0 }, instant and 0 or 0.3, "OutCubic")
         end
         if instant then
             bodyClip.AutomaticSize = state and Enum.AutomaticSize.None or Enum.AutomaticSize.Y
@@ -4224,15 +4156,14 @@ function Section:AddToggle(opts)
         tick.ZIndex = 3
         tick.Parent = box
         Theme.BindFn(tick, function(t) Icons.SetColor(tick, t.AccentText, 0) end)
-        local tickScale = New("UIScale", { Scale = 0, Parent = tick })
         el.Box = box
         setVisual = function(instant)
             if instant then
                 fill.Size = state and UDim2.fromOffset(22, 22) or UDim2.fromOffset(0, 0)
-                tickScale.Scale = state and 1 or 0
+                Icons.SetTransparency(tick, state and 0 or 1, 0)
             else
-                Anim.Spring(fill, "Size", state and UDim2.fromOffset(22, 22) or UDim2.fromOffset(0, 0), Anim.Springs.Bouncy)
-                Anim.Spring(tickScale, "Scale", state and 1 or 0, state and Anim.Springs.Bouncy or Anim.Springs.Stiff)
+                Anim.Tween(fill, { Size = state and UDim2.fromOffset(22, 22) or UDim2.fromOffset(0, 0) }, 0.2, "OutCubic")
+                Icons.SetTransparency(tick, state and 0 or 1, 0.18)
             end
         end
     else
@@ -4274,16 +4205,6 @@ function Section:AddToggle(opts)
                 }, 0.22, "OutQuad")
             end
         end
-        Interact.Press(row, function()
-            pressed = true
-            setVisual(false)
-        end, function()
-            pressed = false
-            setVisual(false)
-        end)
-        row.MouseLeave:Connect(function()
-            if pressed then pressed = false setVisual(false) end
-        end)
     end
 
     local function labelColor(instant)
@@ -4389,9 +4310,9 @@ function Section:AddSlider(opts)
         if instant then
             fill.Size, knob.Position, bubble.Position = w, kp, bp
         else
-            Anim.Spring(fill, "Size", w, { Stiffness = 420, Ratio = 0.95 })
-            Anim.Spring(knob, "Position", kp, { Stiffness = 420, Ratio = 0.95 })
-            Anim.Spring(bubble, "Position", bp, { Stiffness = 420, Ratio = 0.95 })
+            Anim.Spring(fill, "Size", w, { Stiffness = 420, Ratio = 1.0 })
+            Anim.Spring(knob, "Position", kp, { Stiffness = 420, Ratio = 1.0 })
+            Anim.Spring(bubble, "Position", bp, { Stiffness = 420, Ratio = 1.0 })
         end
     end
 
@@ -4422,17 +4343,6 @@ function Section:AddSlider(opts)
         Anim.Tween(bubble, { BackgroundTransparency = show and 0.05 or 1, TextTransparency = show and 0 or 1 }, 0.15, "OutQuad")
     end
 
-    Interact.Hover(hit, function()
-        if el.Disabled then return end
-        Anim.Spring(knob, "Size", UDim2.fromOffset(18, 18), Anim.Springs.Snappy)
-        Anim.Tween(track, { Size = UDim2.new(1, 0, 0, 8) }, 0.15)
-    end, function()
-        if not dragging then
-            Anim.Spring(knob, "Size", UDim2.fromOffset(14, 14), Anim.Springs.Snappy)
-            Anim.Tween(track, { Size = UDim2.new(1, 0, 0, 6) }, 0.2)
-        end
-    end)
-
     Interact.Drag(hit, function(pos)
         if el.Disabled then return end
         dragging = true
@@ -4444,8 +4354,6 @@ function Section:AddSlider(opts)
     end, function()
         dragging = false
         showBubble(false)
-        Anim.Spring(knob, "Size", UDim2.fromOffset(14, 14), Anim.Springs.Snappy)
-        Anim.Tween(track, { Size = UDim2.new(1, 0, 0, 6) }, 0.2)
     end)
 
     box.Focused:Connect(function()
@@ -4549,10 +4457,10 @@ local function makePanel(el, height)
         api.Open = state
         if state then
             panel.Visible = true
-            Anim.Spring(panel, "Size", UDim2.new(1, 0, 0, targetHeight or height or 100), { Stiffness = 260, Ratio = 0.82 })
+            Anim.Spring(panel, "Size", UDim2.new(1, 0, 0, targetHeight or height or 100), { Stiffness = 260, Ratio = 1.0 })
         else
             Anim.Spring(panel, "Size", UDim2.new(1, 0, 0, 0), {
-                Stiffness = 300, Ratio = 0.95,
+                Stiffness = 300, Ratio = 1.0,
                 Done = function()
                     if not api.Open then panel.Visible = false end
                 end,
@@ -4561,7 +4469,7 @@ local function makePanel(el, height)
     end
     function api:Resize(h)
         if api.Open then
-            Anim.Spring(panel, "Size", UDim2.new(1, 0, 0, h), { Stiffness = 300, Ratio = 0.9 })
+            Anim.Spring(panel, "Size", UDim2.new(1, 0, 0, h), { Stiffness = 300, Ratio = 1.0 })
         end
     end
     return api
@@ -4685,11 +4593,6 @@ local function buildDropdown(section, opts, multi)
         Anim.Tween(ref.label, { TextColor3 = on and Theme.Current.Accent or Theme.Current.Text }, d)
         Anim.Tween(ref.bg, { BackgroundTransparency = on and 0.86 or 1 }, d)
         Icons.SetTransparency(ref.check, on and 0 or 1, d)
-        if on then
-            Anim.Spring(ref.checkScale, "Scale", 1, Anim.Springs.Bouncy)
-        else
-            Anim.Spring(ref.checkScale, "Scale", 0.4, Anim.Springs.Stiff)
-        end
     end
 
     local function applyFilter()
@@ -4771,7 +4674,7 @@ local function buildDropdown(section, opts, multi)
             check.Parent = btn
             Theme.BindFn(check, function(t) Icons.SetColor(check, t.Accent, 0) end)
             Icons.SetTransparency(check, 1, 0)
-            local cs = New("UIScale", { Scale = 0.4, Parent = check })
+            local cs = New("UIScale", { Scale = 1, Parent = check })
             local hoverBg = New("Frame", {
                 Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BackgroundColor3 = Color3.new(1, 1, 1), Parent = btn, ZIndex = 0,
             }, { Corner(7) })
@@ -4789,7 +4692,7 @@ local function buildDropdown(section, opts, multi)
     function el:SetOpen(state)
         if el.Disabled and state then return end
         el.IsOpen = state
-        Anim.Tween(chevron, { Rotation = state and 180 or 0 }, 0.3, "OutBack")
+        Anim.Tween(chevron, { Rotation = state and 180 or 0 }, 0.3, "OutCubic")
         Icons.SetColor(chevron, state and Theme.Current.Accent or Theme.Current.SubText, 0.2)
         if state then
             list.Size = UDim2.new(1, -12, 0, listHeight())
@@ -5343,7 +5246,7 @@ local function makeColorPicker(host, opts)
     -- saturation / value square
     local sv = New("TextButton", {
         Name = "SV", Size = UDim2.new(1, -PAD * 2, 0, SV_H), Position = UDim2.fromOffset(PAD, PAD), Text = "", AutoButtonColor = false,
-        BackgroundColor3 = Color3.fromHSV(h, 1, 1), Parent = pf, ClipsDescendants = true,
+        BackgroundColor3 = Color3.fromHSV(h, 1, 1), BackgroundTransparency = 0, Parent = pf, ClipsDescendants = true,
     }, { Corner(8) })
     local white = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = sv, ZIndex = 2 })
     local wg = Instance.new("UIGradient")
@@ -5367,7 +5270,7 @@ local function makeColorPicker(host, opts)
     -- hue bar
     local hueBar = New("TextButton", {
         Size = UDim2.new(1, -PAD * 2, 0, BAR_H), Position = UDim2.fromOffset(PAD, PAD + SV_H + 10), Text = "", AutoButtonColor = false,
-        BackgroundColor3 = Color3.new(1, 1, 1), Parent = pf,
+        BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, Parent = pf,
     }, { Corner(UDim.new(0.5, 0)) })
     local hg = Instance.new("UIGradient")
     local hueKeys = {}
@@ -5386,7 +5289,7 @@ local function makeColorPicker(host, opts)
     if useAlpha then
         alphaBar = New("TextButton", {
             Size = UDim2.new(1, -PAD * 2, 0, BAR_H), Position = UDim2.fromOffset(PAD, alphaY), Text = "", AutoButtonColor = false,
-            BackgroundColor3 = Color3.fromRGB(70, 74, 90), Parent = pf,
+            BackgroundColor3 = Color3.fromRGB(70, 74, 90), BackgroundTransparency = 0, Parent = pf,
         }, { Corner(UDim.new(0.5, 0)) })
         alphaFill = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = default, Parent = alphaBar }, { Corner(UDim.new(0.5, 0)) })
         local ag = Instance.new("UIGradient")
@@ -5510,10 +5413,8 @@ local function makeColorPicker(host, opts)
     end
     Interact.Drag(sv, function(pos)
         rainbow = false cp:_RainbowVisual()
-        Anim.Spring(svCursorScale, "Scale", 1.25, Anim.Springs.Snappy)
         svFrom(pos)
     end, svFrom, function()
-        Anim.Spring(svCursorScale, "Scale", 1, Anim.Springs.Bouncy)
         commit(false)
     end)
 
@@ -5524,10 +5425,8 @@ local function makeColorPicker(host, opts)
     end
     Interact.Drag(hueBar, function(pos)
         rainbow = false cp:_RainbowVisual()
-        Anim.Spring(hueScale, "Scale", 1.25, Anim.Springs.Snappy)
         hueFrom(pos)
     end, hueFrom, function()
-        Anim.Spring(hueScale, "Scale", 1, Anim.Springs.Bouncy)
         commit(false)
     end)
 
@@ -5586,11 +5485,8 @@ local function makeColorPicker(host, opts)
         if host.Disabled then return end
         open = not open
         panel:SetOpen(open, totalH)
-        Anim.Spring(swScale, "Scale", open and 1.12 or 1, Anim.Springs.Bouncy)
         Anim.Tween(swStroke, { Transparency = open and 0.1 or 0.6 }, 0.2)
     end)
-    Interact.Hover(swatch, function() Anim.Spring(swScale, "Scale", 1.12, Anim.Springs.Snappy) end,
-        function() Anim.Spring(swScale, "Scale", open and 1.12 or 1, Anim.Springs.Snappy) end)
 
     function cp:Destroy()
         if cp.Flag then Library.Elements[cp.Flag] = nil Library.Flags[cp.Flag] = nil end
